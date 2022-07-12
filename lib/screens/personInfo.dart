@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:tt/providers/lang_mode.dart';
-import 'package:tt/widegets/sideMenu.dart';
-import 'package:tt/widegets/widgets.dart'; //  AppLocalizations.of(context)!.light,
+//  AppLocalizations.of(context)!.light,
 import '../myThemeData.dart';
+import '../widegets/sideMenu.dart';
 
 class personInfo extends StatefulWidget {
-  const personInfo({Key? key}) : super(key: key);
-
+  String name = '';
+  personInfo(this.name);
   @override
   State<personInfo> createState() => _personInfoState();
 }
@@ -161,25 +161,45 @@ class _personInfoState extends State<personInfo> {
     lang_modeProvider provider = Provider.of(context);
     String currentMode = provider.appMode;
     String currentLang = provider.appLanguage;
+    if (widget.name == 'Abdul-Baset') {
+      makeAbdElBasetInfoList(context);
+    } else if (widget.name == 'Al-Hosry') {
+      makeHosaryInfoList(context);
+    } else if (widget.name == 'Maher') {
+      makeMaherInfoList(context);
+    } else {
+      makeNaserInfoList(context);
+    }
 
-    // makeAbdElBasetInfoList(context);
-    //  makeMaherInfoList(context);
-    // makeHosaryInfoList(context);
-    makeNaserInfoList(context);
     return Scaffold(
-      /*appBar: AppBar(
+      appBar: AppBar(
           toolbarHeight: MediaQuery.of(context).size.height * .12,
-          title: Text(AppLocalizations.of(context)!.abdElBasetName,
-              style: lightTheme.LightThemeData.appBarTheme.toolbarTextStyle!)),
-      drawer: sideMenu(),*/
+          title: Text(
+              widget.name == 'Abdul-Baset'
+                  ? AppLocalizations.of(context)!.abdElBasetName
+                  : widget.name == 'Al-Hosry'
+                      ? AppLocalizations.of(context)!.hosaryName
+                      : widget.name == 'Maher'
+                          ? AppLocalizations.of(context)!.maherName
+                          : AppLocalizations.of(context)!.naserName,
+              style: lightTheme.LightThemeData.appBarTheme.toolbarTextStyle!
+                  .copyWith(fontSize: currentLang == 'en' ? 20 : 35))),
+      drawer: sideMenu(),
       body: ListView(primary: false, children: [
-        imgListView(maher_imgList),
-        // maherInfo(currentMode)
-        //imgListView(hosary_imgList),
-        //  hosaryInfo(currentMode),
-        // maherInfo(currentMode)
-        // abdElbasetInfo(currentMode)
-        naserInfo(currentMode)
+        widget.name == 'Abdul-Baset'
+            ? imgListView(abdelbaset_imgList)
+            : widget.name == 'Al-Hosry'
+                ? imgListView(hosary_imgList)
+                : widget.name == 'Maher'
+                    ? imgListView(maher_imgList)
+                    : imgListView(naser_imgList),
+        widget.name == 'Abdul-Baset'
+            ? abdElbasetInfo(currentMode)
+            : widget.name == 'Al-Hosry'
+                ? hosaryInfo(currentMode)
+                : widget.name == 'Maher'
+                    ? maherInfo(currentMode)
+                    : naserInfo(currentMode)
       ]),
     );
   }

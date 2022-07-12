@@ -10,8 +10,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:tt/screens/splash.dart';
 import 'package:tt/screens/upload.dart';
-import 'package:rolling_bottom_bar/rolling_bottom_bar.dart';
-import 'package:rolling_bottom_bar/rolling_bottom_bar_item.dart';
 
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +20,7 @@ Future main() async {
 
 class MyApp extends StatefulWidget {
   static String homeRoute = 'home';
-  static String baseServerUrl = 'https://c8d6-156-192-169-216.eu.ngrok.io/?';
+  static String baseServerUrl = 'https://3d1c-156-192-154-16.eu.ngrok.io/?';
   @override
   State<MyApp> createState() => _MyAppState();
 }

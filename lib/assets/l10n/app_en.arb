@@ -5,23 +5,35 @@
     "mode": "mode",
     "dark": "dark ",
     "light": "light ",
+    "murratal":"Murattal",
+    "mogawad":"Mujawwad",
     "upload": "upload",
+        "readMore":"read more",
     "dontUploadEmptyAudio": "You can't get a result if the audio file doesn't have a clear sound or has a lot of silence.",
     "uploadStepDiscription":"To upload the audio file, you must press the next button, then choose the audio file and follow the instructions at the bottom of the page accurately.",
     "recordStepDiscription":"To make an audio recording, you have to press the next button and follow the instructions below the page accurately.",
+   
     "instructions": "instructions ",  
     "pleaseFollowThisInstructions": "Please follow these instructions carefully to get a good result.",
     "pleaseWaitDontLeave": " Please wait a little longer if you leave the uploaded audio will be lost.", 
+    
     "record": "record",
     "toRecordPressHere":"to record press here",
     "toStopRecordPressHere":" to stop recording press here",
     "dontRecordInNoise": " Don't start recording the audio when there's noise around you.  ",
     "dontRecordEmptyOrSilence": "You can't get a result if the audio recording doesn't have a clear sound or has a lot of silence. ",
+    
+    "recordShortetThanTen":"the audio duration must be at least 10 sec",
+    "recordLongerThanOneMin":"the audio duration can not be longer than one mintue",
+
+
     "prdeict": "to know reciter name click here ",
-    "result": "reader ",
+    "result": "Reciter ",
+    
     "checkAudio": "check ",
     "uploadAgain":"upload new audio",
     "recordAgain":"make a new record",
+  
     "abdElBasetName":"Abd El-Baset Mohamed Abd El-Samd",
     "born":"Born",
     "abdElBasetbirth1":" January 1, 1927",

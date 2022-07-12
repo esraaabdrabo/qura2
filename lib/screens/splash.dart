@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'package:tt/screens/personInfo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tt/screens/home.dart';
@@ -20,7 +20,11 @@ class _splashState extends State<splash> {
   }
 
   goToHome() {
-    Navigator.push(context, new MaterialPageRoute(builder: (__) => home()));
+    Navigator.push(
+        context,
+        new MaterialPageRoute(builder: (__) => home()
+            //home()
+            ));
   }
 
   @override

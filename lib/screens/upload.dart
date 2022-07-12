@@ -1,13 +1,20 @@
+import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:assets_audio_player/assets_audio_player.dart';
+
+import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter/return_code.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:tt/api/firebase_api.dart';
+import 'package:tt/main.dart';
 import 'package:tt/providers/lang_mode.dart';
+import 'package:tt/screens/personInfo.dart';
 import 'package:tt/widegets/widgets.dart';
 import 'package:path/path.dart';
 import 'package:http/http.dart' as http;
@@ -23,12 +30,7 @@ class upload extends StatefulWidget {
   State<upload> createState() => _uploadState();
 }
 
-@override
-State<upload> createState() => _uploadState();
-
 class _uploadState extends State<upload> {
-  static String splashRoute = 'splash';
-
   String? collectedURL;
   UploadTask? task;
   String path = '';
@@ -62,134 +64,151 @@ class _uploadState extends State<upload> {
     );
   }
 
-  String bytes = '';
+  Duration? duration;
+  //firest step choose the audio
   Future selectFile() async {
     final result = await FilePicker.platform
         .pickFiles(type: FileType.audio, allowMultiple: false);
-
+    ///////////////////////////////////////
     if (result == null) return;
+    ///////////////////////////////////////
     path = result.files.single.path!;
     fileExtension = result.files.single.extension;
+
     print('extension $fileExtension');
     setState(() => file = File(path));
-    await file!.readAsBytes().then((value) {
-      bytes = Uint16List.fromList(value).toString();
-      setState(() {
-        bytes;
-      });
-      print('bytttteeeessss $bytes');
+    playAudio(0);
+    getAudioDuration();
+    //testffmpeg();
+
+    /*  var response = await http.get(Uri.parse(
+        'https://7445-156-192-176-175.eu.ngrok.io/?bytesList=$bytes'));
+    if (response.statusCode == 200) {
+      print('success 200');
+    } else {
+      print('falied ${response.statusCode}');
+    }*/
+
+    //Unhandled Exception: SocketException: Broken pipe
+    //(OS Error: Broken pipe, errno = 32),
+    // address = 2c78-156-192-176-175.eu.ngrok.io, port = 54558
+    //cant send the whole list according to its length
+  }
+
+  void getAudioDuration() {
+    assetsAudioPlayer.current.listen((playingAudio) {
+      duration = playingAudio!.audio.duration;
+      print('ffrom get ${duration!.inMinutes}');
+
+      if (!shortAudio(duration!.inSeconds)) {
+        longAudio(duration!.inSeconds);
+      }
+    });
+  }
+
+  bool isShortAudio = false;
+  bool shortAudio(int durationInSec) {
+    //sec < 10
+    if (durationInSec < 10) {
+      isShortAudio = true;
+      setState(() {});
+      print('audio cant be less than 10 we have : $durationInSec sec');
+    } else {
+      print('audio more than 10 sec we have : $durationInSec sec');
+    }
+    return false;
+  }
+
+  Widget alertShorterThanTenSec(
+      BuildContext context, String currentMode, String currentLang) {
+    return Container(
+      padding: EdgeInsets.only(top: 25),
+      child: Column(children: [
+        Container(
+          width: MediaQuery.of(context).size.width * .8,
+          alignment:
+              AlignmentGeometry.lerp(Alignment.center, Alignment.center, 4),
+          child: Text(
+            isShortAudio
+                ? AppLocalizations.of(context)!.recordShortetThanTen
+                : AppLocalizations.of(context)!.recordLongerThanOneMin,
+            textAlign: TextAlign.center,
+            style: currentMode == 'light'
+                ? lightTheme.stepDiscriptionTextStyle
+                : DarkTheme.lanAndModeSettings,
+          ),
+        ),
+        newPredictBtn(currentMode, currentLang, context)
+      ]),
+    );
+  }
+
+  bool isLongAudio = false;
+  bool longAudio(int durationInSec) {
+    if (durationInSec > 60) {
+      isLongAudio = true;
+      setState(() {});
+      // testffmpeg();
+      print('audio cant be more than 1 min we have : $durationInSec min');
+    } else {
+      print('audio more than 10 sec and less than 1 min (no problem) ');
+    }
+    return false;
+  }
+
+  Widget alertLongerThanOneMin(
+      BuildContext context, String currentMode, String currentLang) {
+    return Container(
+      padding: EdgeInsets.only(top: 25),
+      child: Column(children: [
+        Container(
+          width: MediaQuery.of(context).size.width * .8,
+          alignment:
+              AlignmentGeometry.lerp(Alignment.center, Alignment.center, 4),
+          child: Text(
+            isShortAudio
+                ? AppLocalizations.of(context)!.recordShortetThanTen
+                : AppLocalizations.of(context)!.recordLongerThanOneMin,
+            textAlign: TextAlign.center,
+            style: currentMode == 'light'
+                ? lightTheme.stepDiscriptionTextStyle
+                : DarkTheme.lanAndModeSettings,
+          ),
+        ),
+        newPredictBtn(currentMode, currentLang, context)
+      ]),
+    );
+  }
+
+  void testffmpeg() async {
+    Directory dirctory = await getApplicationDocumentsDirectory();
+    String newpath1 = '${dirctory.path}';
+    print(dirctory.absolute);
+    String cuttedAudioPath = '/data/user/0/com.example.tt/cache/file_picker';
+    String newName = DateTime.now().toString().replaceAll(RegExp(r' '), '');
+
+    ///////////////////work cmd///////////////////
+    /// cut audio from 4 sec to 10 sec
+    //  "-i $path -ss 00:00:4 -to 00:00:10 -c copy   $newpath1/$cuttedAudio.$fileExtension";
+    var cmd =
+        "-i $path -ss 00:00:4 -to 00:00:10 -c copy   $cuttedAudioPath/$newName.mp3";
+
+    ///    data/user/0/com.example.tt/app_flutter/new.mp3
+    await FFmpegKit.execute(cmd).then((value) async {
+      ReturnCode? returnCode = await value.getReturnCode();
+      print(await value.getState());
+      setState(() {});
+      print("returnCode $returnCode");
     });
 
-    /** Uint8List testbytes = await file!.readAsBytes();
-  *  print('bytes is $testbytes');
-*
-     * [73, 68, 51, 3, 0, 0, 0, 0, 31, 118, 84, 73, 84, 50, 0,
-     *  0, 0, 8, 0, 0, 0, 48, 48, 52, 46, 109, 112, 51, 67, 79,
-     *  77, 77, 0, 0, 0, 26, 0, 0, 0, 101, 110, 103, 0, 104, 116, 
-     * 116, 112, 58, 47, 47, 109, 112, 51, 115, 112, 108, 116, 46,
-     *  115, 102, 46, 110, 101, 116, 87, 79, 65, 70, 0, 0, 0, 33,
-     *  0, 0, 104, 116, 116, 112, 58, 47, 47, 119, 119, 119, 46,
-     *  118, 101, 114, 115, 101, 98, 121, 118, 101, 114, 115, 101,
-     *  113, 117, 114, 97, 110, 46, 99, 111, 109, 47, 84, 67, 79, 78,
-     *  0, 0, 0, 5, 0, 0, 0, 40, 49, 50, 41, 84, 65, 76, 66, 0, 0, 0,
-     *  22, 0, 0, 0, 86, 101, 114, 115, 101, 66, 121, 86, 101, 114, 115,
-     *  101, 81, 117, 114, 97, 110, 46, 67, 111, 109, 67, 79, 77, 77, 0,
-     *  0, 0, 38, 0, 0, 0, 101, 110, 103, 0, 104, 116, 116, 112, 58, 47,
-     *  47, 119, 119, 119, 46, 118, 101, 114, 115, 101, 98, 121, 118, 101,
-     *  114, 115, 101, 113, 117, 114, 97, 110, 46, 99, 111, 109, 47, 84, 80
-     * , 69, 49, 0, 0, 0, 10, 0, 0, 0, 65, 108, 32, 72, 117, 115, 97, 114,
-     *  121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    */
-//rootbundel must take from asset file
-//try copy audio into asset then read it as bytes using rootbundle
-/*    File newAudioInAsset = await file!.copy('images/new.wav');
-
-    var bytesv = await rootBundle.load('images/new.wav');
-    print('bbbbbbbbbbbbbbbbbbbbb $bytesv');
-    print(bytesv.buffer.asFloat64List());
-    //File('D:\flutter\tt\images\test.wav');
-
-    //   var testBytes = await audioFile.readAsBytes();
-    //   print('our bytes is : $testBytes');*/
+    assetsAudioPlayer.open(Audio.file('$cuttedAudioPath/$newName.mp3'),
+        showNotification: true);
   }
 
-  bool isUploadingFBstart = false;
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////end pre proccessing///////////////////////////
 
-  Future uploadFile() async {
-    if (file == null) return;
-    isUploadingFBstart = true;
-    setState(() {});
-    final fileName = basename(file!.path);
-    final destination = 'files/$fileName';
-
-    task = FirebaseApi.uploadFile(destination, file!);
-    setState(() {});
-
-    if (task == null) return;
-
-    final snapshot = await task!.whenComplete(() {});
-    final urlDownload = await snapshot.ref.getDownloadURL();
-    final uploadedAudioName = snapshot.ref.name;
-
-    print('Download-Link: $urlDownload');
-
-    var firbaseBaseLink =
-        'https://firebasestorage.googleapis.com/v0/b/mlflutter-e5a7b.appspot.com/o/files';
-    collectedURL =
-        'downloadUrl=$urlDownload&firbaseBaseLink=$firbaseBaseLink&uploadedAudioName=$uploadedAudioName&fileExtension=$fileExtension';
-  }
-
-//https://firebasestorage.googleapis.com/v0/b/mlflutter-e5a7b.appspot.com/o/files
-//%2F(error when convert this to /) will be add in python code
-//ebrahem001.wav?
-//alt=media&
-//token=15ddfe8e-ebf4-4f3b-9b2d-fb1dd3b94df7
-//$serverBaseLinkfirbaseBaseLink=$firbaseBaseLink&uploadedAudioName=
-//$uploadedAudioName&downloadUrl=$urlDownload
-////&fileExtension=mp3 => update in next
-  bool isConnectionError = false;
-  String name = '';
-  sendToPy(collectedURL) async {
-    var serverBaseLink = 'https://3e96-156-194-125-117.eu.ngrok.io/?';
-    var firbaseBaseLink =
-        'https://firebasestorage.googleapis.com/v0/b/mlflutter-e5a7b.appspot.com/o/files';
-    var response =
-        await http.get(Uri.parse('${serverBaseLink}${collectedURL!.trim()}'));
-    if (response.statusCode == 200) {
-      isPredictionCompleted = true;
-      print(response.body);
-      name = response.body;
-      if (name == '[1]') {
-        name = 'عبدالباسط عبدالصمد';
-        setState(() {});
-      } else if (name == '[2]') {
-        name = 'محمود الحصري';
-        setState(() {});
-      } else if (name == '[3]') {
-        name = 'ماهر المعيقلي';
-        setState(() {});
-      } else {
-        name = 'ناصر القطامي';
-        setState(() {});
-      }
-
-      print('name $name');
-      // var x = jsonDecode(response.body) as Map<String, List<int>>;
-      //List<int> result = x['result']!;
-      //print(result[0]);
-
-      setState(() {});
-    } else {
-      isConnectionError = true;
-      setState(() {});
-    }
-    print('url send :$collectedURL');
-    print('url download send to python');
-    print('response from python ${response.body}');
-  }
-
-  bool isPredictionCompleted = false;
-  final assetsAudioPlayer = AssetsAudioPlayer();
+  AssetsAudioPlayer assetsAudioPlayer = AssetsAudioPlayer();
   bool isPlaying = false; //display record icon when false
 
   Widget playBtn(BuildContext context, String currentMode) {
@@ -207,7 +226,9 @@ class _uploadState extends State<upload> {
                 ),
               ),
               onPressed: () {
-                playAudio();
+                print(isShortAudio);
+                print(isLongAudio);
+                playAudio(10.0);
                 isPlaying = true;
                 setState(() {});
 
@@ -222,18 +243,12 @@ class _uploadState extends State<upload> {
   Duration? PlayedAudioDuration;
   int? PlayedAudioDurationMin;
   int? PlayedAudioDurationSec;
-  playAudio() {
-    assetsAudioPlayer.open(Audio.file(path), showNotification: true);
-    currentAudioPlayed = assetsAudioPlayer.current.value;
-    if (assetsAudioPlayer.currentPosition.value == PlayedAudioDuration) {
-      print('reacheeeedddddddddddddddddddd');
-    }
-    PlayedAudioDuration = currentAudioPlayed!.audio.duration;
-    PlayedAudioDurationMin = PlayedAudioDuration!.inMinutes;
-    PlayedAudioDurationSec = PlayedAudioDuration!.inSeconds;
-    print(currentAudioPlayed!.audio.duration);
+
+  playAudio(double volume) {
+    isPlaying = true;
     print('in play audio');
-    //  currentAudio
+    // await assetsAudioPlayer.setVolume(volume);
+    assetsAudioPlayer.open(Audio.file(path));
   }
 
   Widget stopBtn(BuildContext context, String currentMode) {
@@ -259,7 +274,10 @@ class _uploadState extends State<upload> {
   }
 
   stopAudio() {
+    isPlaying = false;
     assetsAudioPlayer.stop();
+
+    setState(() {});
   }
 
   Duration? position;
@@ -276,14 +294,16 @@ class _uploadState extends State<upload> {
               )
             : Padding(
                 padding: const EdgeInsets.only(top: 20),
-                child: Text(
-                  'check your connection',
-                  style: GoogleFonts.markaziText(
-                      textStyle: TextStyle(
-                          fontSize: 30,
-                          color: currentMode == 'light'
-                              ? lightTheme.LightThemeData.accentColor
-                              : DarkTheme.whiteColor)),
+                child: Center(
+                  child: Text(
+                    'check your connection',
+                    style: GoogleFonts.markaziText(
+                        textStyle: TextStyle(
+                            fontSize: 30,
+                            color: currentMode == 'light'
+                                ? lightTheme.LightThemeData.accentColor
+                                : DarkTheme.whiteColor)),
+                  ),
                 ),
               )
         : Container(
@@ -313,6 +333,7 @@ class _uploadState extends State<upload> {
                               builder: (context, position) {
                                 PlayedAudioDuration = assetsAudioPlayer
                                     .current.value!.audio.duration;
+
                                 PlayedAudioDurationMin =
                                     PlayedAudioDuration!.inMinutes;
                                 PlayedAudioDurationSec =
@@ -329,7 +350,7 @@ class _uploadState extends State<upload> {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        '${PlayedAudioDurationMin.toString()}:${PlayedAudioDurationSec.toString()}',
+                                        '0:${PlayedAudioDurationSec.toString()}',
                                         style: GoogleFonts.markaziText(
                                             textStyle: TextStyle(
                                                 fontSize: 15,
@@ -339,7 +360,7 @@ class _uploadState extends State<upload> {
                                                     : DarkTheme.whiteColor)),
                                       ),
                                       Text(
-                                        '${positionMin}:${positionSec}',
+                                        '0:${positionSec}',
                                         style: GoogleFonts.markaziText(
                                             textStyle: TextStyle(
                                                 fontSize: 15,
@@ -356,17 +377,20 @@ class _uploadState extends State<upload> {
                       : Container(),
                   !isPredictionCompleted
                       //predict and delete
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            deleteBtn(context, currentMode),
-                            SizedBox(
-                              width: 10,
-                            ),
-                            predictBtn(context, currentMode)
-                          ],
-                        )
-                      : Container()
+                      ? !isShortAudio && !isLongAudio
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                deleteBtn(context, currentMode),
+                                SizedBox(
+                                  width: 10,
+                                ),
+                                predictBtn(context, currentMode)
+                              ],
+                            )
+                          : alertShorterThanTenSec(
+                              context, currentMode, currentLanguage)
+                      : Container(),
                 ],
               );
             }),
@@ -410,6 +434,7 @@ class _uploadState extends State<upload> {
   */
   }
 
+  bool isPredictionCompleted = false;
   Widget deleteBtn(BuildContext context, String currentMode) {
     return path != ''
         ? Container(
@@ -430,14 +455,80 @@ class _uploadState extends State<upload> {
               ),
             ),
             onPressed: () {
+              isLongAudio = false;
+              isShortAudio = false;
               path = '';
               stopAudio();
               setState(() {});
-
-              //enableMiniMusic();
             },
           ))
         : Container();
+  }
+
+  bool isUploadingFBstart = false;
+
+  Future uploadFile() async {
+    if (file == null) return;
+    isUploadingFBstart = true;
+    setState(() {});
+    final fileName = basename(file!.path);
+    final destination = 'files/$fileName';
+
+    task = FirebaseApi.uploadFile(destination, file!);
+    setState(() {});
+
+    if (task == null) return;
+
+    final snapshot = await task!.whenComplete(() {});
+    final urlDownload = await snapshot.ref.getDownloadURL();
+    final uploadedAudioName = snapshot.ref.name;
+
+    print('Download-Link: $urlDownload');
+
+    var firbaseBaseLink =
+        'https://firebasestorage.googleapis.com/v0/b/mlflutter-e5a7b.appspot.com/o/files';
+    collectedURL =
+        'downloadUrl=$urlDownload&firbaseBaseLink=$firbaseBaseLink&uploadedAudioName=$uploadedAudioName&fileExtension=$fileExtension';
+  }
+
+//https://firebasestorage.googleapis.com/v0/b/mlflutter-e5a7b.appspot.com/o/files
+//%2F(error when convert this to /) will be add in python code
+//ebrahem001.wav?
+//alt=media&
+//token=15ddfe8e-ebf4-4f3b-9b2d-fb1dd3b94df7
+//$serverBaseLinkfirbaseBaseLink=$firbaseBaseLink&uploadedAudioName=
+//$uploadedAudioName&downloadUrl=$urlDownload
+////&fileExtension=mp3 => update in next
+  bool isConnectionError = false;
+  String name = '';
+  String readingType = '';
+  String photoname = '';
+  String typeCopy = '';
+  sendToPy(collectedURL, BuildContext context) async {
+    var firbaseBaseLink =
+        'https://firebasestorage.googleapis.com/v0/b/mlflutter-e5a7b.appspot.com/o/files';
+    var response = await http
+        .get(Uri.parse('${MyApp.baseServerUrl}${collectedURL!.trim()}'));
+    if (response.statusCode == 200) {
+      isPredictionCompleted = true;
+      print(response.body);
+
+      var responseMap = jsonDecode(response.body);
+
+      readingType = responseMap['type'];
+      name = responseMap['name'];
+
+      photoname = name;
+      typeCopy = readingType;
+      print('name $name');
+      setState(() {});
+    } else {
+      isConnectionError = true;
+      setState(() {});
+    }
+    print('url send :$collectedURL');
+    print('url download send to python');
+    print('response from python ${response.body}');
   }
 
   Widget predictBtn(BuildContext context, String currentMode) {
@@ -459,8 +550,11 @@ class _uploadState extends State<upload> {
                       : DarkTheme.DarkThemeData.primaryColor),
             ),
             onPressed: () async {
+              if (isPlaying) {
+                stopAudio();
+              }
               await uploadFile();
-              sendToPy(collectedURL);
+              sendToPy(collectedURL, context);
               setState(() {});
             },
           ))
@@ -477,20 +571,33 @@ class _uploadState extends State<upload> {
         padding: EdgeInsets.only(top: 30),
         child: Column(
           children: [
-            Text(bytes),
             //upload
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width:
-                      path != '' ? MediaQuery.of(context).size.width * .15 : 0,
-                ),
-                widgets.stepContainer(
-                    context, '1', AppLocalizations.of(context)!.upload),
-                path != '' ? widgets.success(context, currentMode) : Container()
-              ],
-            ),
+            !isPredictionCompleted
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: path != ''
+                            ? MediaQuery.of(context).size.width * .15
+                            : 0,
+                      ),
+                      widgets.stepContainer(
+                          context, '1', AppLocalizations.of(context)!.upload),
+                      path != '' && !isShortAudio && !isLongAudio
+                          ? widgets.success(context, currentMode)
+                          : //warning icon when the record is less than 10 sec
+                          (path != '' && (isShortAudio || isLongAudio))
+                              ? Icon(
+                                  Icons.warning,
+                                  color: currentMode == 'light'
+                                      ? Color.fromARGB(230, 255, 0, 0)
+                                      : Color.fromARGB(255, 246, 255, 79),
+                                  size: MediaQuery.of(context).size.width * .15,
+                                )
+                              : Container()
+                    ],
+                  )
+                : Container(),
             SizedBox(
               height: path == ''
                   ? MediaQuery.of(context).size.height * .05
@@ -517,11 +624,12 @@ class _uploadState extends State<upload> {
                           ])),
                     ],
                   )
-                : widgets.verticalLine(context, currentMode, lineHight: 50),
+                : !isPredictionCompleted
+                    ? widgets.verticalLine(context, currentMode, lineHight: 50)
+                    : Container(),
 
-            // widgets.verticalLine(context, lineHight: 55),
             //step 2 predict or delete
-            path != ''
+            path != '' && !isPredictionCompleted
                 ? Column(
                     children: [
                       Center(
@@ -532,11 +640,13 @@ class _uploadState extends State<upload> {
                                 width: isPredictionCompleted
                                     ? MediaQuery.of(context).size.width * .15
                                     : 0),
-                            widgets.stepContainer(
-                              context,
-                              '',
-                              AppLocalizations.of(context)!.checkAudio,
-                            ),
+                            !isShortAudio && !isLongAudio
+                                ? widgets.stepContainer(
+                                    context,
+                                    '',
+                                    AppLocalizations.of(context)!.checkAudio,
+                                  )
+                                : widgets.stepContainer(context, '', "error"),
                             isPredictionCompleted
                                 ? widgets.success(context, currentMode)
                                 : Container()
@@ -579,14 +689,40 @@ class _uploadState extends State<upload> {
                               widgets.verticalLine(context, currentMode,
                                   lineHight: 30),
                               widgets.horizontalLine(currentMode),
-                              resultNameContainer(name, currentMode)
+                              resultNameContainer(
+                                  currentMode, currentLanguage, context),
+                              SizedBox(
+                                height:
+                                    MediaQuery.of(context).size.height * .04,
+                              ),
+                              photoname == 'Abdul-Baset'
+                                  ? reciterPhoto(
+                                      'images/abdelbaset/1.jpg', context)
+                                  : photoname == 'Al-Hosry'
+                                      ? reciterPhoto(
+                                          'images/hosary/1.jfif', context)
+                                      : photoname == 'Maher'
+                                          ? reciterPhoto(
+                                              'images/maher/1.png', context)
+                                          : reciterPhoto(
+                                              'images/naser/1.jfif', context),
+                              SizedBox(
+                                height:
+                                    MediaQuery.of(context).size.height * .02,
+                              ),
                             ])
                           : Container()
                     ],
                   )
                 : Container(),
             path != '' && isPredictionCompleted
-                ? newPredictBtn(currentMode, currentLanguage, context)
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      showProfile(currentMode, currentLanguage, context),
+                      newPredictBtn(currentMode, currentLanguage, context),
+                    ],
+                  )
                 : Container(),
           ],
         ),
@@ -594,7 +730,30 @@ class _uploadState extends State<upload> {
     );
   }
 
-  static Widget resultNameContainer(String name, String currentMode) {
+  Widget resultNameContainer(
+      String currentMode, String currentLang, BuildContext context) {
+    print('name $name');
+    if (photoname == 'Abdul-Baset') {
+      name = AppLocalizations.of(context)!.abdElBasetName;
+
+      setState(() {});
+    } else if (photoname == 'Al-Hosry') {
+      name = AppLocalizations.of(context)!.hosaryName;
+      setState(() {});
+    } else if (photoname == 'Maher') {
+      name = AppLocalizations.of(context)!.maherName;
+      setState(() {});
+    } else {
+      name = AppLocalizations.of(context)!.naserName;
+      setState(() {});
+    }
+    if (typeCopy == 'Murattal') {
+      readingType = AppLocalizations.of(context)!.murratal;
+      setState(() {});
+    } else {
+      readingType = AppLocalizations.of(context)!.mogawad;
+      setState(() {});
+    }
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -603,14 +762,33 @@ class _uploadState extends State<upload> {
         ),
         //mic btn
         Container(
-            padding: EdgeInsets.only(left: 15, top: 10),
-            child: Text(name,
-                style: currentMode == 'light'
-                    ? lightTheme.LightThemeData.appBarTheme.toolbarTextStyle!
-                        .copyWith(color: Color.fromARGB(157, 133, 7, 7))
-                    : DarkTheme.DarkThemeData.appBarTheme.toolbarTextStyle!
-                        .copyWith(color: DarkTheme.whiteColor)))
+          padding: EdgeInsets.only(left: 15, top: 10),
+          width: MediaQuery.of(context).size.width * .8,
+          child: Text(
+            '$name ($readingType)',
+            style: currentMode == 'light'
+                ? lightTheme.LightThemeData.appBarTheme.toolbarTextStyle!
+                    .copyWith(
+                        fontSize: currentLang == 'en' ? 20 : 30,
+                        color: Color.fromARGB(157, 133, 7, 7))
+                : DarkTheme.DarkThemeData.appBarTheme.toolbarTextStyle!
+                    .copyWith(
+                        fontSize: currentLang == 'en' ? 20 : 30,
+                        color: DarkTheme.whiteColor),
+            textAlign: TextAlign.center,
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget reciterPhoto(String imgPath, BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(100),
+          image: DecorationImage(image: AssetImage('$imgPath'))),
+      height: MediaQuery.of(context).size.height * .25,
+      width: MediaQuery.of(context).size.width * .5,
     );
   }
 
@@ -620,12 +798,43 @@ class _uploadState extends State<upload> {
       padding: const EdgeInsets.only(top: 20.0),
       child: ElevatedButton(
           onPressed: () {
+            stopAudio();
+
             isPredictionCompleted = false;
             path = '';
             isUploadingFBstart = false;
+            isShortAudio = false;
+            isLongAudio = false;
             setState(() {});
           },
           child: Text(AppLocalizations.of(context)!.uploadAgain),
+          style: currentMode == 'light'
+              ? lightTheme.btnStyle
+              : ButtonStyle(
+                  textStyle: MaterialStateProperty.all(TextStyle(
+                    fontSize: 15,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.w300,
+                    color: Color.fromARGB(255, 25, 85, 162),
+                  )),
+                  backgroundColor: MaterialStateProperty.all(
+                      Color.fromARGB(210, 123, 43, 43)),
+                )),
+    );
+  }
+
+  Widget showProfile(
+      String currentMode, String currentLang, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20.0),
+      child: ElevatedButton(
+          onPressed: () {
+            print(photoname);
+            Navigator.push(context,
+                new MaterialPageRoute(builder: (__) => personInfo(photoname)));
+            setState(() {});
+          },
+          child: Text(AppLocalizations.of(context)!.readMore),
           style: currentMode == 'light'
               ? lightTheme.btnStyle
               : ButtonStyle(

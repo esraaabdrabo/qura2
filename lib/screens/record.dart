@@ -1,9 +1,7 @@
-import 'dart:developer';
+import 'dart:convert';
 import 'dart:io';
 import 'package:assets_audio_player/assets_audio_player.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
@@ -14,10 +12,10 @@ import 'package:tt/main.dart';
 import 'package:tt/myThemeData.dart';
 import 'package:http/http.dart' as http;
 import 'package:tt/providers/lang_mode.dart';
+import 'package:tt/screens/personInfo.dart';
 import 'package:tt/widegets/widgets.dart';
 import '../api/firebase_api.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-import 'package:assets_audio_player/assets_audio_player.dart';
 
 class record extends StatefulWidget {
   static String recordRoute = 'record';
@@ -27,9 +25,7 @@ class record extends StatefulWidget {
 }
 
 class _recordState extends State<record> with TickerProviderStateMixin {
-  bool isrecording = false; //display record icon when false
   late bool hasPermission;
-
   Future<bool> checkPermission() async {
     await Permission.microphone.request();
     bool hasPermission = await Permission.microphone.isGranted;
@@ -44,7 +40,7 @@ class _recordState extends State<record> with TickerProviderStateMixin {
 
   String path = '';
   late DateTime recordName;
-  ////////////////////////////////////////////////////////////////
+
   ///get the path of device storage
   Future<String> getFilePath(String recordName) async {
     Directory dirctory = await getApplicationDocumentsDirectory();
@@ -55,9 +51,9 @@ class _recordState extends State<record> with TickerProviderStateMixin {
   }
 
   bool isRecordingStopped = false;
-
+  bool isrecording = false; //display record icon when false
+//start record
   start() async {
-    
     print('in start');
     if (await checkPermission()) {
       print('has premission');
@@ -75,8 +71,10 @@ class _recordState extends State<record> with TickerProviderStateMixin {
     }
   }
 
+//stop record
   stop() {
     isRecordingStopped = true;
+    isrecording = false;
     setState(() {});
 
     RecordMp3.instance.stop();
@@ -85,6 +83,7 @@ class _recordState extends State<record> with TickerProviderStateMixin {
 ////////play audio with assets player //////////////////
   final assetsAudioPlayer = AssetsAudioPlayer();
 
+//mic icon and stop record icon
   Widget micBtn(String currentMode) {
     return //mic btn
         Container(
@@ -93,7 +92,7 @@ class _recordState extends State<record> with TickerProviderStateMixin {
         children: [
           //mic btn
           Container(
-              /*    decoration: currentMode == 'dark'
+            decoration: currentMode == 'dark'
                 ? DarkTheme.btnDecoration.copyWith(
                     //when recording will be red shadow on stop icon
                     boxShadow: [
@@ -120,6 +119,7 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                   )
                 : lightTheme.btnDecoration.copyWith(
                     //when recording will be red shadow on stop icon
+                    color: isrecording ? Color(0XFfF6F9EA) : Color(0xff273c57),
                     boxShadow: [
                       BoxShadow(
                           color: isrecording
@@ -141,35 +141,13 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                         spreadRadius: 0.0,
                       ),
                     ],
-         */
+                  ),
+            child: !isrecording
+                ?
+                //odd start
+                //mic btn
 
-              child: !isrecording
-                  ?
-                  //odd start
-                  //mic btn
-                  ElevatedButton(
-                      onPressed: () {
-                        isrecording = true;
-                        setState(() {});
-
-                        start();
-                      },
-                      child: Row(
-                        children: [
-                          Icon(Icons.mic),
-                          SizedBox(
-                            width: MediaQuery.of(context).size.width * .05,
-                          ),
-                          Text(
-                            AppLocalizations.of(context)!.toRecordPressHere,
-                          ),
-                        ],
-                      ),
-                      style: currentMode == 'light'
-                          ? lightTheme.btnStyle
-                          : DarkTheme.btnStyle,
-                    )
-                  /*     IconButton(
+                IconButton(
                     icon: Icon(
                       Icons.mic,
                       color: currentMode == 'dark'
@@ -183,30 +161,8 @@ class _recordState extends State<record> with TickerProviderStateMixin {
 
                       start();
                     })
-         */ //stop//
-                  : ElevatedButton(
-                      onPressed: () {
-                        isrecording = false;
-                        setState(() {});
-                        stop();
-                      },
-                      child: Row(
-                        children: [
-                          Icon(Icons.stop),
-                          SizedBox(
-                            width: MediaQuery.of(context).size.width * .05,
-                          ),
-                          Text(
-                            AppLocalizations.of(context)!.toStopRecordPressHere,
-                          ),
-                        ],
-                      ),
-                      style: currentMode == 'light'
-                          ? lightTheme.btnStyle
-                          : DarkTheme.btnStyle,
-                    )
-
-              /*     IconButton(
+                //stop//
+                : IconButton(
                     icon: Icon(
                       Icons.stop,
                       color: Color.fromARGB(201, 219, 44, 44),
@@ -217,18 +173,85 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                       //counter = counter + 1;
                       setState(() {});
                       stop();
-                      /* ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  width: MediaQuery.of(context).size.width * .25,
-                                  content: Text('record stop and saved')));*/
+                      if (currentSecInRecording < 10) {
+                        shorterThanTenSec = true;
+                      }
                     },
                   ),
-          */
-              ),
+          ),
         ],
       ),
     );
   }
 
+//current length of record
+  Widget showStriemRecordDuration(String currentMode) {
+    return Container(
+      width: MediaQuery.of(context).size.width * .15,
+      padding: EdgeInsets.all(10),
+      child: StreamBuilder<int>(
+        stream: generateNumbers(),
+        initialData: 0,
+        builder: (
+          BuildContext context,
+          AsyncSnapshot<int> snapshot,
+        ) {
+          return Text(snapshot.data.toString(),
+              style: currentMode == 'light'
+                  ? lightTheme.stepDiscriptionTextStyle.copyWith(shadows: [
+                      Shadow(
+                          blurRadius: 1, color: Color.fromARGB(85, 93, 10, 10)),
+                    ])
+                  : DarkTheme.stepDiscriptionTextStyle);
+          //   : DarkTheme.lanAndModeSettings);
+        },
+      ),
+    );
+  }
+
+  bool oneMinCompleted = false;
+  int currentSecInRecording = 0;
+//to display record duration during record
+  Stream<int> generateNumbers() async* {
+    for (int i = 1; i <= 60; i++) {
+      await Future<void>.delayed(Duration(seconds: 1));
+
+      yield i;
+      print(i);
+      currentSecInRecording = i;
+      //one min completed 60 sec max duration of record
+      if (i == 60) {
+        stop();
+      }
+    }
+    ;
+  }
+
+  bool shorterThanTenSec = false;
+  Widget alertShorterThanTenSec(String currentMode, String currentLang) {
+    return Container(
+      padding: EdgeInsets.only(top: 25),
+      child: Column(children: [
+        Container(
+          width: MediaQuery.of(context).size.width * .8,
+          alignment:
+              AlignmentGeometry.lerp(Alignment.center, Alignment.center, 4),
+          child: Text(
+            AppLocalizations.of(context)!.recordShortetThanTen,
+            textAlign: TextAlign.center,
+            style: currentMode == 'light'
+                ? lightTheme.stepDiscriptionTextStyle
+                : DarkTheme.lanAndModeSettings,
+          ),
+        ),
+        newPredictBtn(currentMode, currentLang, context)
+      ]),
+    );
+  }
+
+///////////////////////////////////////////////////////////////////////////////////////
+////////////////////// end recording functions ///////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////
   bool isPlaying = false;
   Widget playBtn(BuildContext context, String currentMode) {
     return path != ''
@@ -340,11 +363,10 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                               builder: (context, position) {
                                 PlayedAudioDuration = assetsAudioPlayer
                                     .current.value!.audio.duration;
-                                PlayedAudioDurationMin =
-                                    PlayedAudioDuration!.inMinutes;
+                                //  PlayedAudioDurationMin =PlayedAudioDuration!.inMinutes;
                                 PlayedAudioDurationSec =
                                     PlayedAudioDuration!.inSeconds;
-                                positionMin = position.inMinutes;
+                                // positionMin = position.inMinutes;
                                 positionSec = position.inSeconds;
                                 return Container(
                                   width: MediaQuery.of(context).size.width,
@@ -355,8 +377,9 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
+                                      //total record duration in sec
                                       Text(
-                                        '${PlayedAudioDurationMin.toString()}:${PlayedAudioDurationSec.toString()}',
+                                        '0:${PlayedAudioDurationSec.toString()}',
                                         style: GoogleFonts.markaziText(
                                             textStyle: TextStyle(
                                                 fontSize: 15,
@@ -365,8 +388,9 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                                                         .accentColor
                                                     : DarkTheme.whiteColor)),
                                       ),
+                                      //played record duration
                                       Text(
-                                        '${positionMin}:${positionSec}',
+                                        '0:${positionSec}',
                                         style: GoogleFonts.markaziText(
                                             textStyle: TextStyle(
                                                 fontSize: 15,
@@ -458,7 +482,7 @@ class _recordState extends State<record> with TickerProviderStateMixin {
         : Container();
   }
 
-  static Widget resultNameContainer(String name, String currentMode) {
+  Widget resultNameContainer(String currentMode, String currentLang) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -467,13 +491,22 @@ class _recordState extends State<record> with TickerProviderStateMixin {
         ),
         //mic btn
         Container(
-            padding: EdgeInsets.only(left: 15, top: 10),
-            child: Text(name,
-                style: currentMode == 'light'
-                    ? lightTheme.LightThemeData.appBarTheme.toolbarTextStyle!
-                        .copyWith(color: Color.fromARGB(157, 133, 7, 7))
-                    : DarkTheme.DarkThemeData.appBarTheme.toolbarTextStyle!
-                        .copyWith(color: DarkTheme.whiteColor)))
+          padding: EdgeInsets.only(left: 15, top: 10),
+          width: MediaQuery.of(context).size.width * .8,
+          child: Text(
+            '$name ($readingType)',
+            style: currentMode == 'light'
+                ? lightTheme.LightThemeData.appBarTheme.toolbarTextStyle!
+                    .copyWith(
+                        fontSize: currentLang == 'en' ? 20 : 30,
+                        color: Color.fromARGB(157, 133, 7, 7))
+                : DarkTheme.DarkThemeData.appBarTheme.toolbarTextStyle!
+                    .copyWith(
+                        fontSize: currentLang == 'en' ? 20 : 30,
+                        color: DarkTheme.whiteColor),
+            textAlign: TextAlign.center,
+          ),
+        ),
       ],
     );
   }
@@ -489,27 +522,39 @@ class _recordState extends State<record> with TickerProviderStateMixin {
         child: Column(
           children: [
             //record
-            //row contain step container and succsess
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                //when right icon appear the stepcontainer will not be
-                //in center so sized box will make it in center
-                SizedBox(
-                  width: path != '' && isRecordingStopped == true
-                      ? MediaQuery.of(context).size.width * .15
-                      : 0,
-                ),
-                widgets.stepContainer(
-                    context, '1', AppLocalizations.of(context)!.record),
-                //should check that recording finished to display
-                //right icon and audio to review
-                isRecordingStopped == true
-                    ? widgets.success(
-                        context, currentMode) //when record is finshed
-                    : Container()
-              ],
-            ),
+            //row contain recording container and succsess
+            !isPredictionCompleted
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      //when right icon appear the stepcontainer will not be
+                      //in center so sized box will make it in center
+                      SizedBox(
+                        width: path != '' && isRecordingStopped == true
+                            ? MediaQuery.of(context).size.width * .15
+                            : 0,
+                      ),
+                      widgets.stepContainer(
+                          context, '1', AppLocalizations.of(context)!.record),
+                      //should check that recording finished to display
+                      //right icon and audio to review
+                      isRecordingStopped == true
+                          ? shorterThanTenSec
+                              ?
+                              //warning icon when the record is less than 10 sec
+                              Icon(
+                                  Icons.warning,
+                                  color: currentMode == 'light'
+                                      ? Color.fromARGB(230, 255, 0, 0)
+                                      : Color.fromARGB(255, 246, 255, 79),
+                                  size: MediaQuery.of(context).size.width * .15,
+                                )
+                              : widgets.success(
+                                  context, currentMode) //when record is finshed
+                          : Container()
+                    ],
+                  )
+                : Container(),
             //leave space between stepcontainer and mic icon in the first step
             //then disappear in the next steps
             isRecordingStopped == false
@@ -523,12 +568,50 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                       widgets.stepDiscriptionContainer(
                         currentMode,
                         context,
-                        AppLocalizations.of(context)!.uploadStepDiscription,
+                        AppLocalizations.of(context)!.recordStepDiscription,
                       ),
                       //mic
                       Padding(
                         padding: const EdgeInsets.only(bottom: 25),
-                        child: micBtn(currentMode),
+                        child: Container(
+                          width: isrecording
+                              ? MediaQuery.of(context).size.width * .8
+                              : MediaQuery.of(context).size.width * .5,
+                          padding: EdgeInsets.all(12),
+                          // color: DarkTheme.whiteColor,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              micBtn(currentMode),
+                              //space between linear indecator and mic btn
+                              SizedBox(
+                                width: isrecording
+                                    ? MediaQuery.of(context).size.width * 0.05
+                                    : MediaQuery.of(context).size.width * 0,
+                              ),
+
+                              //display stream for record's duration
+                              isrecording
+                                  ? showStriemRecordDuration(currentMode)
+                                  : Container(),
+
+                              //linear indecator while recording
+                              isrecording
+                                  ? Container(
+                                      height:
+                                          MediaQuery.of(context).size.width *
+                                              .02,
+                                      width: MediaQuery.of(context).size.width *
+                                          .2,
+                                      child: widgets.musicLine(
+                                          context, currentMode)
+                                      //LinearProgressIndicator()
+
+                                      )
+                                  : Container(),
+                            ],
+                          ),
+                        ),
                       ),
                       //instructions
                       Container(
@@ -540,47 +623,52 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                           ])),
                     ],
                   )
-                : widgets.verticalLine(context, currentMode, lineHight: 25),
-
-            //step2 section
-            isRecordingStopped == true && path != ''
-                //if the user start the record then stopped it => path!='' and isrecostop =true
-                //then in listen step if the user delete record =? path =='' but isrecstop = true
-                ? Column(
-                    children: [
-                      Center(
-                        //contain step2 and success
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                                width: isPredictionCompleted
-                                    ? MediaQuery.of(context).size.width * .15
-                                    : 0),
-                            widgets.stepContainer(
-                              context,
-                              '',
-                              AppLocalizations.of(context)!.checkAudio,
-                            ),
-                            isPredictionCompleted
-                                ? widgets.success(context, currentMode)
-                                : Container()
-                          ],
-                        ),
-                      ),
-                      !isPredictionCompleted
-                          ? Container(
-                              width: MediaQuery.of(context).size.width,
-                              child: listenToAudio(
-                                  context, currentMode, currentLang))
-                          : Container(),
-                      isPredictionCompleted
-                          ? widgets.verticalLine(context, currentMode,
-                              lineHight: 25)
-                          : Container(),
-                    ],
-                  )
-                : Container(),
+                : !isPredictionCompleted
+                    ? widgets.verticalLine(context, currentMode, lineHight: 25)
+                    : Container(),
+            shorterThanTenSec
+                ? alertShorterThanTenSec(currentMode, currentLang)
+                :
+                //step2 listen to audio
+                isRecordingStopped == true && path != ''
+                    //if the user start the record then stopped it => path!='' and isrecostop =true
+                    //then in listen step if the user delete record =? path =='' but isrecstop = true
+                    ? !isPredictionCompleted
+                        ? Column(
+                            children: [
+                              Center(
+                                //contain step2 and success
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                        width: isPredictionCompleted
+                                            ? MediaQuery.of(context)
+                                                    .size
+                                                    .width *
+                                                .15
+                                            : 0),
+                                    widgets.stepContainer(
+                                      context,
+                                      '',
+                                      AppLocalizations.of(context)!.checkAudio,
+                                    ),
+                                    isPredictionCompleted
+                                        ? widgets.success(context, currentMode)
+                                        : Container()
+                                  ],
+                                ),
+                              ),
+                              !isPredictionCompleted
+                                  ? Container(
+                                      width: MediaQuery.of(context).size.width,
+                                      child: listenToAudio(
+                                          context, currentMode, currentLang))
+                                  : Container(),
+                            ],
+                          )
+                        : Container()
+                    : Container(),
 
             //result
             isPredictionCompleted && path != ''
@@ -601,11 +689,33 @@ class _recordState extends State<record> with TickerProviderStateMixin {
                 ? Column(children: [
                     //  widgets.verticalLine(context, currentMode, lineHight: 30),
                     //widgets.horizontalLine(currentMode),
-                    resultNameContainer(name, currentMode)
+                    resultNameContainer(currentMode, currentLang),
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * .04,
+                    ),
+
+                    namePhoto == 'Abdul-Baset'
+                        ? reciterPhoto('images/abdelbaset/1.jpg')
+                        : namePhoto == 'Al-Hosry'
+                            ? reciterPhoto('images/hosary/1.jfif')
+                            : namePhoto == 'Maher'
+                                ? reciterPhoto('images/maher/1.png')
+                                : reciterPhoto('images/naser/1.jfif'),
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * .02,
+                    ),
                   ])
                 : Container(),
             path != '' && isPredictionCompleted
-                ? newPredictBtn(currentMode, currentLang, context)
+                ?
+                //predict again and info
+                Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      showProfile(currentMode, currentLang, context),
+                      newPredictBtn(currentMode, currentLang, context),
+                    ],
+                  )
                 : Container(),
           ],
         ),
@@ -643,9 +753,11 @@ class _recordState extends State<record> with TickerProviderStateMixin {
 
   // var serverBaseLink = 'https://3e96-156-194-125-117.eu.ngrok.io/?';
 //  bool isPredictionCompleted = false;
-  bool isPredictionCompleted = true;
+  bool isPredictionCompleted = false;
 
-  String name = 'عبدالباسط عبدالصمد';
+  String name = '';
+  String readingType = '';
+  String namePhoto = '';
   sendToPy(collectedURL) async {
     var firbaseBaseLink =
         'https://firebasestorage.googleapis.com/v0/b/mlflutter-e5a7b.appspot.com/o/files';
@@ -655,36 +767,53 @@ class _recordState extends State<record> with TickerProviderStateMixin {
     if (response.statusCode == 200) {
       isPredictionCompleted = true;
       print(response.body);
-      name = response.body;
-      if (name == '[1]') {
-        name = 'عبدالباسط عبدالصمد';
+      var responseMap = jsonDecode(response.body);
+      readingType = responseMap['type'];
+      name = responseMap['name'];
+      namePhoto = name;
+      if (name == 'Abdul-Baset') {
+        name = AppLocalizations.of(context)!.abdElBasetName;
+
         setState(() {});
-      } else if (name == '[2]') {
-        name = 'محمود الحصري';
+      } else if (name == 'Al-Hosry') {
+        name = AppLocalizations.of(context)!.hosaryName;
         setState(() {});
-      } else if (name == '[3]') {
-        name = 'ماهر المعيقلي';
+      } else if (name == 'Maher') {
+        name = AppLocalizations.of(context)!.maherName;
         setState(() {});
       } else {
-        name = 'ناصر القطامي';
+        name = AppLocalizations.of(context)!.naserName;
         setState(() {});
       }
-
+      if (readingType == 'Murattal') {
+        readingType = AppLocalizations.of(context)!.murratal;
+        setState(() {});
+      } else {
+        readingType = AppLocalizations.of(context)!.mogawad;
+        setState(() {});
+      }
       print('name $name');
-      // var x = jsonDecode(response.body) as Map<String, List<int>>;
-      //List<int> result = x['result']!;
-      //print(result[0]);
-
       setState(() {});
-    }
 
-    print('url send :$collectedURL');
-    print('url download send to python');
-    print('response from python ${response.body}');
+      print('url send :$collectedURL');
+      print('url download send to python');
+      print('response from python ${response.body}');
+    }
+  }
+
+  Widget reciterPhoto(String imgPath) {
+    return Container(
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(100),
+          image: DecorationImage(image: AssetImage('$imgPath'))),
+      height: MediaQuery.of(context).size.height * .25,
+      width: MediaQuery.of(context).size.width * .5,
+    );
   }
 
   Widget newPredictBtn(
       String currentMode, String currentLang, BuildContext context) {
+    shorterThanTenSec = false;
     return Padding(
       padding: const EdgeInsets.only(top: 20.0),
       child: ElevatedButton(
@@ -697,10 +826,45 @@ class _recordState extends State<record> with TickerProviderStateMixin {
             isrecording = false;
             setState(() {});
           },
-          child: Text(AppLocalizations.of(context)!.uploadAgain),
+          child: Text(AppLocalizations.of(context)!.recordAgain),
           style: currentMode == 'light'
               ? lightTheme.btnStyle
-              : DarkTheme.btnStyle),
+              : ButtonStyle(
+                  textStyle: MaterialStateProperty.all(TextStyle(
+                    fontSize: 15,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.w300,
+                    color: Color.fromARGB(255, 25, 85, 162),
+                  )),
+                  backgroundColor: MaterialStateProperty.all(
+                      Color.fromARGB(210, 123, 43, 43)),
+                )),
+    );
+  }
+
+  Widget showProfile(
+      String currentMode, String currentLang, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20.0),
+      child: ElevatedButton(
+          onPressed: () {
+            Navigator.push(context,
+                new MaterialPageRoute(builder: (__) => personInfo(namePhoto)));
+            setState(() {});
+          },
+          child: Text(AppLocalizations.of(context)!.readMore),
+          style: currentMode == 'light'
+              ? lightTheme.btnStyle
+              : ButtonStyle(
+                  textStyle: MaterialStateProperty.all(TextStyle(
+                    fontSize: 15,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.w300,
+                    color: Color.fromARGB(255, 25, 85, 162),
+                  )),
+                  backgroundColor: MaterialStateProperty.all(
+                      Color.fromARGB(210, 123, 43, 43)),
+                )),
     );
   }
 }

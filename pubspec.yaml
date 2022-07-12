@@ -29,7 +29,6 @@ dependencies:
   firebase_core: ^1.0.3
   firebase_storage: ^8.0.3
   http: ^0.13.4
-  ffmpeg_kit_flutter: ^4.5.1
   audio_waveforms: 0.0.3+2
   record_mp3: ^3.0.0
   permission_handler: ^9.2.0
@@ -43,8 +42,7 @@ dependencies:
   mini_music_visualizer: ^1.0.1
   shared_preferences: ^2.0.15
   rolling_bottom_bar: ^0.2.2
-  chaquopy: ^0.0.15
-
+  ffmpeg_kit_flutter: ^4.5.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
