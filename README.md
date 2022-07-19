@@ -1,16 +1,7 @@
-# tt
+# Quran Audio Reciter .
+Have you ever heard Reciter voice but unfortunately you couldn't recognize who is this person?
+If this situation happened with you the first solution will be to ask any one about this voice, but not always it will be recognized.
 
-A new Flutter project.
+Here's our responsibility comes, we will tell you who is the reciter just by upploding or recording the voice. 
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
-
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+So simply the project goal is to  identify the Quran Audio Reciter using machine learning model. 
